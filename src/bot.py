@@ -4,46 +4,36 @@ import json
 import time
 import pyjokes
 import configparser
+import os
 
 # pprint erlaubt pretty printing
 from pprint import pprint
 from requests.api import request
 
+# get the path to the current file
+current_filepath = os.path.dirname(__file__)
 # configure and define the logger
-logging.basicConfig(filename="./doc/log.txt", level=logging.DEBUG)
+logging.basicConfig(filename=f"{current_filepath}/doc/log.txt", level=logging.DEBUG)
 logger = logging.getLogger()
-
-# load the config data
-config_data = configparser.ConfigParser()
-config_data.read("./doc/config.txt")
-token = config_data["TOKEN"]["bot_token"]
-try:
-    chat_id_vik = int(config_data["CHAT_ID"]["chat_id_vik"])
-    chat_id_testbotgruppe = int(config_data["CHAT_ID"]["chat_id_group"])
-except ValueError as e:
-    logger.error(
-        "An error occured while trying to convert one of the chat IDs to an integer"
-    )
-    raise e
 # all queries to the Telegram Bot API must be served over HTTPS and need to be presented in this form: https://api.telegram.org/bot<token>/METHOD_NAME
-query_url = f"https://api.telegram.org/bot{token}"
+query_url = "https://api.telegram.org/bot"
 
 
-def print_request_error(function_name, response):
-    """Prints the error that occured after sending a request"""
-    print(
+def log_request_error(function_name, response):
+    """Logs the error that occured after sending a request"""
+    logger.error(
         f"Something went wrong while calling '{function_name}': \n {response['description']}"
     )
 
 
 def send_message(chat_id, message):
     payload = {"chat_id": chat_id, "text": message}
-    r = requests.post(f"{query_url}/sendMessage", params=payload)
+    r = requests.post(f"{query_url}{bot_token}/sendMessage", params=payload)
     # print(r.url)
     r = r.json()
     # in case of a bad request:
     if not r["ok"]:
-        print_request_error("send_message", r)
+        log_request_error("send_message", r)
         return False
 
 
@@ -54,14 +44,14 @@ def send_custom_keyboard_message(chat_id, message, reply_markup):
     r = r.json()
     # in case of a bad request:
     if not r["ok"]:
-        print_request_error("send_message", r)
+        log_request_error("send_message", r)
         return False
 
 
-def get_updates():
+def get_updates(bot_token):
     """Returns the most recent updates of the bot or false if there are no new updates."""
     # load infos about the last update
-    with open("./doc/updinf.json", "r") as upd_file:
+    with open(f"{current_filepath}/doc/updinf.json", "r") as upd_file:
         update_info = json.load(upd_file)
     # get the time of the last update
     last_update_time = update_info["time_of_last_upd"]
@@ -76,12 +66,12 @@ def get_updates():
         update_offset = 0
     # set the payload for the request to get an update
     payload = {"offset": update_offset + 1, "allowed_updates": ["message"]}
-    r = requests.get(f"{query_url}/getUpdates", params=payload)
+    r = requests.get(f"{query_url}{bot_token}/getUpdates", params=payload)
     # change the response to a .json-encoded version
     r = r.json()
     # in case of a bad request:
     if not r["ok"]:
-        print_request_error("get_updates", r)
+        log_request_error("get_updates", r)
         return False
     # after checking the 'ok' status, only the 'result' is of interest to us
     result = r["result"]
@@ -99,7 +89,7 @@ def get_updates():
     update_info["time_of_last_upd"] = last_update_time
     update_info["last_upd_id"] = last_update_id
     # write the new 'update_info' to the updinf file
-    with open("./doc/updinf.json", "w") as upd_file:
+    with open(f"{current_filepath}/doc/updinf.json", "w") as upd_file:
         json.dump(update_info, upd_file)
     return result
 
@@ -130,16 +120,29 @@ custom_keyboard = json.dumps(
 
 
 def chat_loop(chat_id):
-    send_message(chat_id, "Up and running ;)")
-    send_custom_keyboard_message(chat_id, "Auswahl:", custom_keyboard)
-    # while True:
-    #     last_update = get_updates()
-    #     if last_update:
-    #         message_text = last_update[-1]["message"]["text"]
-    #         if message_text in command_map:
-    #             command_map[message_text](chat_id)
-    #     time.sleep(1)
+    send_message(chat_id_testbotgruppe, "Up and running ;)")
+    # send_custom_keyboard_message(chat_id, "Auswahl:", custom_keyboard)
+    while True:
+        last_update = get_updates(bot_token=bot_token)
+        if last_update:
+            message_text = last_update[-1]["message"]["text"]
+            if message_text in command_map:
+                command_map[message_text](chat_id)
+        time.sleep(1)
 
 
-chat_loop(chat_id_testbotgruppe)
-# send_message(chat_id_testbotgruppe, "Aha")
+if __name__ == "__main__":
+    # load the config data
+    config_data = configparser.ConfigParser()
+    config_data.read(f"{current_filepath}/doc/config.txt")
+    bot_token = config_data["TOKEN"]["bot_token"]
+    try:
+        chat_id_vik = int(config_data["CHAT_ID"]["chat_id_vik"])
+        chat_id_testbotgruppe = int(config_data["CHAT_ID"]["chat_id_group"])
+    except ValueError as e:
+        logger.error(
+            "An error occured while trying to convert one of the chat IDs to an integer"
+        )
+        raise e
+    chat_loop(chat_id_testbotgruppe)
+    # send_message(chat_id_testbotgruppe, "Aha")
