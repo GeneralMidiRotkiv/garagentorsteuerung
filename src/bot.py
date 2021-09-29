@@ -26,7 +26,7 @@ def log_request_error(function_name, response):
     )
 
 
-def send_message(chat_id, message):
+def send_message(bot_token, chat_id, message):
     payload = {"chat_id": chat_id, "text": message}
     r = requests.post(f"{query_url}{bot_token}/sendMessage", params=payload)
     # print(r.url)
@@ -128,6 +128,7 @@ def chat_loop(chat_id):
             message_text = last_update[-1]["message"]["text"]
             if message_text in command_map:
                 command_map[message_text](chat_id)
+            send_message(chat_id_testbotgruppe, message_text)
         time.sleep(1)
 
 
