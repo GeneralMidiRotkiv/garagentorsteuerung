@@ -2,6 +2,7 @@
 loop_sleep_time = 5
 deadline = 12:15
 max_open_time = 2
+relay_on_time = 1
 
 [CHAT_ID]
 chat_id_vik = 623316721
