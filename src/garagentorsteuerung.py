@@ -2,7 +2,7 @@
 from subprocess import check_call
 import time
 import logging
-from gpiozero import LED, Button
+from gpiozero import LED, Button, OutputDevice, exc
 import configparser
 import bot
 import os
@@ -10,6 +10,8 @@ import os
 #! shutdown_btn = Button(16, hold_time=3)
 #! closed_switch = Button(2)
 #! opened_switch = Button(21)
+
+relay_pin = 12
 
 # ===================Mock-Buttons======================================
 class Button:
@@ -55,29 +57,35 @@ def load_config():
     deadline = config_data["DEFAULT"]["deadline"]
     try:
         # try to convert the deadline to a time tuple
-        deadline = time.strptime(deadline, "%H:%M")
+        time.strptime(deadline, "%H:%M")
     except ValueError as e:
         # if the deadline cannot be converted to a time tuple:
         logger.error(
             f"Error while converting the given 'deadline' value to a time tuple: {e}"
         )
     try:
-        max_open_time = float(config_data["DEFAULT"]["max_open_time"])
+        float(config_data["DEFAULT"]["max_open_time"])
     except ValueError as e:
         logger.error(
             f"Error while converting the given 'max_open_time' value to a float: {e}"
         )
     try:
-        loop_sleep_time = int(config_data["DEFAULT"]["loop_sleep_time"])
+        int(config_data["DEFAULT"]["loop_sleep_time"])
     except ValueError as e:
         logger.error(
             f"Error while converting the given 'loop_sleep_time' value to an integer: {e}"
         )
     try:
-        chat_id_group = int(config_data["CHAT_ID"]["chat_id_group"])
+        int(config_data["CHAT_ID"]["chat_id_group"])
     except ValueError as e:
         logger.error(
             f"Error while converting the given 'chat_id_group' value to an integer: {e}"
+        )
+    try:
+        int(config_data["DEFAULT"]["relay_on_time"])
+    except ValueError as e:
+        logger.error(
+            f"Error while converting the given 'relay_on_time' value to an integer: {e}"
         )
     return config_data
 
@@ -95,6 +103,14 @@ def check_door_position():
     if not closed_switch.is_pressed and opened_switch.is_pressed:
         return "in_transition"
 
+def activate_relay(activation_duration):
+    """Activates the relay connected to the door motor"""
+    # build the representation of the relay
+    relay = OutputDevice(relay_pin)
+    # activate the relay for the defined time
+    relay.on()
+    time.sleep(activation_duration)
+    relay.off()
 
 def main():
     # load the settings once to get the group id
@@ -107,6 +123,8 @@ def main():
     )
     # create a 'Command' instance that stores the most recent command permanently
     new_command = Command()
+    # create a 'Door' instance
+    door = Door()
     while True:
         # get the starting-time of this loop iteration
         loop_starting_time = time.time()
@@ -121,7 +139,14 @@ def main():
             new_command.keyword = current_update[-1]["message"]["text"]
             logger.info(f"Received a new command: '{new_command.keyword}'")
         # check and store the door's position
-
+        door.state = check_door_position()
+        if door.state = "closed":
+            pass
+        else:
+            #if the door is not 'closed':
+            #check if an active command to close the door has already been issued
+            if new_command.executed and new_command.keyword == 'close':
+                activate_relay(settings["DEFAULT"]["relay_on_time"])
         # wait until the defined loop time has passed
         while time.time() - loop_starting_time < settings.getint(
             "DEFAULT", "loop_sleep_time"
