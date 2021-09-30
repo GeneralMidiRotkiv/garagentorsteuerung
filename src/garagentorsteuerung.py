@@ -11,9 +11,16 @@ import os
 #! closed_switch = Button(2)
 #! opened_switch = Button(21)
 
-shutdown_btn = False
-closed_switch = True
-opened_switch = False
+# ===================Mock-Buttons======================================
+class Button:
+    def __init__(self, is_pressed):
+        self.is_pressed = None
+
+
+shutdown_btn = Button(False)
+closed_switch = Button(True)
+opened_switch = Button(False)
+# ======================================================================
 
 # configure and define the logger
 logging.basicConfig(filename="./doc/log.txt", level=logging.DEBUG)
@@ -24,8 +31,18 @@ current_filepath = os.path.dirname(__file__)
 
 
 class Command:
+    """Represents a command received from Telegram"""
+
     keyword = None
     executed = False
+
+
+class Door:
+    """Represents the door and its attributes"""
+
+    state = None
+    opening_time = None
+    recently_open = False
 
 
 def load_config():
@@ -65,6 +82,20 @@ def load_config():
     return config_data
 
 
+def check_door_position():
+    """Check the position of the door by querying the tactile switches and returns the position.
+
+    position values can be: 'closed', 'open' or 'in_transition'
+    """
+    # query the switch that indicates a closed door
+    if closed_switch.is_pressed:
+        return "closed"
+    if opened_switch.is_pressed:
+        return "open"
+    if not closed_switch.is_pressed and opened_switch.is_pressed:
+        return "in_transition"
+
+
 def main():
     # load the settings once to get the group id
     settings = load_config()
@@ -88,6 +119,9 @@ def main():
             # if there is a command in the update, create a new Command instance
             # TODO: hier könnte die Überprüfung auf authorisierten user geschehen
             new_command.keyword = current_update[-1]["message"]["text"]
+            logger.info(f"Received a new command: '{new_command.keyword}'")
+        # check and store the door's position
+
         # wait until the defined loop time has passed
         while time.time() - loop_starting_time < settings.getint(
             "DEFAULT", "loop_sleep_time"
