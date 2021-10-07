@@ -1,5 +1,4 @@
 # 'check_call' von 'subprocess' erlaubt es, shell-Befehle auszuführen
-from _typeshed import NoneType
 from subprocess import check_call
 import threading
 import time
@@ -18,12 +17,12 @@ relay_pin = 12
 # ===================Mock-Buttons======================================
 class Button:
     def __init__(self, is_pressed):
-        self.is_pressed = None
+        self.is_pressed = is_pressed
 
 
 shutdown_btn = Button(False)
-closed_switch = Button(True)
-opened_switch = Button(False)
+closed_switch = Button(False)
+opened_switch = Button(True)
 # ======================================================================
 
 # configure and define the logger
@@ -92,10 +91,10 @@ def load_config():
             f"Error while converting the given 'chat_id_group' value to an integer: {e}"
         )
     try:
-        int(config_data["DEFAULT"]["relay_on_time"])
+        int(config_data["DEFAULT"]["relay_activation_duration"])
     except ValueError as e:
         logger.error(
-            f"Error while converting the given 'relay_on_time' value to an integer: {e}"
+            f"Error while converting the given 'relay_activation_duration' value to an integer: {e}"
         )
     return config_data
 
@@ -187,34 +186,35 @@ def after_deadline(deadline):
 def handle_alarm(alarm):
     """Handles alarms and decides when to send one out"""
     # TODO: eine Nachricht senden, die 'offen lassen' oder 'jetzt schließen' als Option hat und diese Befehle dann ausführt
-    while alarm.active:
-        # create a thread that sends reminder messages in the background
-        thread = threading.Thread(target=send_timed_alarm, args=[alarm], daemon=True)
-    # if the alarm has been deactivated, stop the background thread
-    thread.join()
+    # create a thread that sends reminder messages in the background
+    thread = threading.Thread(target=send_timed_alarm, args=[alarm], daemon=True)
+    thread.start()
+    if not alarm.active:
+        # if the alarm has been deactivated, stop the background thread
+        thread.join()
 
 
 def send_timed_alarm(alarm):
     """Sends a message depending on whether it is the first alarm or if a certain time has passed."""
-    # get the time after which a new remind-message is neccessary
-    reminder_time = global_settings["MESSAGE"]["reminder_delay"]
-    # if 'last_sent_time' is 'None', no message has yet been sent
-    if alarm.last_sent_time == NoneType:
-        # send a message and set the message time
-        bot.send_message(
-            global_settings["TOKEN"]["bot_token"],
-            global_settings["CHAT_ID"]["chat_id_group"],
-            "Das Garagentor steht offen",
-        )
-        alarm.last_sent_time = time.time()
-    else:
-        # if there was a message sent already, check if a reminder is necessary
-        if time.time() >= alarm.last_sent_time + reminder_time * 60:
+    #! take out
+    print("Thread started")
+    while True:
+        # get the time after which a new remind-message is neccessary
+        reminder_time = float(global_settings["MESSAGE"]["reminder_delay"])
+        # if 'last_sent_time' is 'None', no message has yet been sent;
+        # if there was a message sent already, check if a reminder is neccessary
+        if (
+            alarm.last_sent_time == None
+            or time.time() >= alarm.last_sent_time + reminder_time * 60
+        ):
+            # send a message and set the message time
             bot.send_message(
                 global_settings["TOKEN"]["bot_token"],
                 global_settings["CHAT_ID"]["chat_id_group"],
                 "Das Garagentor steht offen",
             )
+            alarm.last_sent_time = time.time()
+        time.sleep(30)
 
 
 def send_success_message(position_keyword):
@@ -265,7 +265,9 @@ def main():
             if not new_command.executed and new_command.keyword == "close":
                 reposition_door(door, "closed", loop_settings)
             # if no command has been issued, check if the deadline has been crossed
-            elif after_deadline(deadline=loop_settings["DEFAULT"]["deadline"]):
+            elif after_deadline(
+                deadline=time.strptime(loop_settings["DEFAULT"]["deadline"], "%H:%M")
+            ):
                 # if the alert is not yet active, activate it, then handle it accordingly
                 if not alarm.active:
                     alarm.active = True
